@@ -16,7 +16,7 @@ fn main() -> io::Result<OutputExt> {
             esac &&
             
             git checkout "${default}" &&
-            git pull --ff-only origin &&
+            git pull --ff-only origin 2>/dev/null || git pull --ff-only upstream &&
             git branch -D "${current}" &&
             git push origin --delete "${current}"
     "#;
@@ -46,7 +46,12 @@ fn main() -> io::Result<OutputExt> {
                 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
             Run { git checkout $default }
-            Run { git pull --ff-only origin }
+            Run {
+                git pull --ff-only origin 2>$null
+                if ($LASTEXITCODE -ne 0) {
+                    git pull --ff-only upstream
+                }
+            }
             Run { git branch -D $current }
             Run { git push origin --delete $current }
         "#;
