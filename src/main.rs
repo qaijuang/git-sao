@@ -6,7 +6,7 @@ use std::{
 fn main() -> io::Result<OutputExt> {
     #[cfg(unix)]
     {
-        let script = r#"
+        const SCRIPT: &str = r#"
             current=$(git branch --show-current) &&
 
             default=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || git symbolic-ref --short refs/remotes/upstream/HEAD) &&
@@ -19,10 +19,10 @@ fn main() -> io::Result<OutputExt> {
             git pull --ff-only origin 2>/dev/null || git pull --ff-only upstream &&
             git branch -D "${current}" &&
             git push origin --delete "${current}"
-    "#;
+        "#;
 
         Command::new("sh")
-            .args(["-c", script])
+            .args(["-c", SCRIPT])
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .output()
@@ -31,7 +31,7 @@ fn main() -> io::Result<OutputExt> {
 
     #[cfg(windows)]
     {
-        let script = r#"
+        const SCRIPT: &str = r#"
             $current = (git branch --show-current).Trim()
             if (-not $current) { exit $LASTEXITCODE }
 
@@ -62,7 +62,7 @@ fn main() -> io::Result<OutputExt> {
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                script,
+                SCRIPT,
             ])
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
