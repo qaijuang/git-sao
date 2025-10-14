@@ -7,13 +7,18 @@ fn main() -> io::Result<OutputExt> {
     #[cfg(unix)]
     {
         let script = r#"
-        current=$(git branch --show-current) &&
-        default=$(git symbolic-ref --short refs/remotes/origin/HEAD) &&
-        default=${default#origin/} &&
-        git checkout "$default" &&
-        git pull --ff-only origin &&
-        git branch -D "$current" &&
-        git push origin --delete "$current"
+            current=$(git branch --show-current) &&
+
+            default=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || git symbolic-ref --short refs/remotes/upstream/HEAD) &&
+            case ${default} in
+            origin/*) default=${default#origin/} ;;
+            *) default=${default#upstream/} ;;
+            esac &&
+            
+            git checkout "${default}" &&
+            git pull --ff-only origin &&
+            git branch -D "${current}" &&
+            git push origin --delete "${current}"
     "#;
 
         Command::new("sh")
@@ -30,9 +35,11 @@ fn main() -> io::Result<OutputExt> {
             $current = (git branch --show-current).Trim()
             if (-not $current) { exit $LASTEXITCODE }
 
-            $default = (git symbolic-ref --short refs/remotes/origin/HEAD).Trim()
-            if (-not $default) { exit $LASTEXITCODE }
-            $default = $default -replace '^origin/', ''
+            $default = (git symbolic-ref --short refs/remotes/origin/HEAD 2>$null)
+            if ($LASTEXITCODE -ne 0 -or -not $default) {
+                $default = (git symbolic-ref --short refs/remotes/upstream/HEAD)
+            }
+            $default = $default.Trim() -replace '^origin/', ''
 
             function Run($cmd) {
                 & $cmd
