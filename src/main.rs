@@ -10,9 +10,16 @@ fn main() -> io::Result<OutputExt> {
             current=$(git branch --show-current) &&
 
             default=$(git remote show origin | awk '/HEAD branch/ {print $NF}') &&
-            
+
             git checkout "${default}" &&
-            git pull --ff-only origin || git pull --ff-only upstream &&
+
+            remote=$(git config branch."${default}".remote) &&
+            if [ "${remote}" = "origin" ]; then
+                git pull --ff-only origin
+            else
+                git pull --ff-only upstream
+            fi &&
+
             git branch -D "${current}" &&
             git push origin --delete "${current}"
         "#;
@@ -38,13 +45,18 @@ fn main() -> io::Result<OutputExt> {
                 & $cmd
                 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
+
             Run { git checkout $default }
+
             Run {
-                git pull --ff-only origin
-                if ($LASTEXITCODE -ne 0) {
+                $remote = (git config branch."$default".remote)
+                if ($remote -eq "origin") {
+                    git pull --ff-only origin
+                } else {
                     git pull --ff-only upstream
                 }
             }
+
             Run { git branch -D $current }
             Run { git push origin --delete $current }
         "#;
