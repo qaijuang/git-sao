@@ -9,14 +9,17 @@ fn main() -> io::Result<OutputExt> {
         const SCRIPT: &str = r#"
             current=$(git branch --show-current) &&
 
-            default=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || git symbolic-ref --short refs/remotes/upstream/HEAD) &&
-            case ${default} in
-            origin/*) default=${default#origin/} ;;
-            *) default=${default#upstream/} ;;
-            esac &&
-            
+            default=$(git remote show origin | awk '/HEAD branch/ {print $NF}') &&
+
             git checkout "${default}" &&
-            git pull --ff-only origin 2>/dev/null || git pull --ff-only upstream &&
+
+            remote=$(git config branch."${default}".remote) &&
+            if [ "${remote}" = "origin" ]; then
+                git pull --ff-only origin
+            else
+                git pull --ff-only upstream
+            fi &&
+
             git branch -D "${current}" &&
             git push origin --delete "${current}"
         "#;
@@ -32,26 +35,28 @@ fn main() -> io::Result<OutputExt> {
     #[cfg(windows)]
     {
         const SCRIPT: &str = r#"
-            $current = (git branch --show-current).Trim()
+            $current = (git branch --show-current)
             if (-not $current) { exit $LASTEXITCODE }
 
-            $default = (git symbolic-ref --short refs/remotes/origin/HEAD 2>$null)
-            if ($LASTEXITCODE -ne 0 -or -not $default) {
-                $default = (git symbolic-ref --short refs/remotes/upstream/HEAD)
-            }
-            $default = $default.Trim() -replace '^origin/', ''
+            $default = (git remote show origin | Select-String 'HEAD branch') -replace '.*: '
+            if (-not $default) { exit $LASTEXITCODE }
 
             function Run($cmd) {
                 & $cmd
                 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             }
+
             Run { git checkout $default }
+
             Run {
-                git pull --ff-only origin 2>$null
-                if ($LASTEXITCODE -ne 0) {
+                $remote = (git config branch."$default".remote)
+                if ($remote -eq "origin") {
+                    git pull --ff-only origin
+                } else {
                     git pull --ff-only upstream
                 }
             }
+
             Run { git branch -D $current }
             Run { git push origin --delete $current }
         "#;
