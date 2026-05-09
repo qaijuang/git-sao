@@ -21,7 +21,17 @@ fn main() -> io::Result<OutputExt> {
             fi &&
 
             git branch -D "${current}" &&
-            git push origin --delete "${current}"
+            if ! git push origin --delete "${current}"; then
+                for remote in $(git remote); do
+                    # skip remote that is origin
+                    if [ "${remote}" = "origin" ]; then
+                        continue
+                    fi
+                    if git ls-remote --heads "${remote}" "${current}"; then
+                        git push "${remote}" --delete "${current}" && break
+                    fi
+                done
+            fi
         "#;
 
         Command::new("sh")
@@ -58,7 +68,21 @@ fn main() -> io::Result<OutputExt> {
             }
 
             Run { git branch -D $current }
-            Run { git push origin --delete $current }
+
+            try {
+                Run { git push origin --delete $current }
+            } catch {
+                foreach ($remote in (git remote)) {
+                    # skip remote that is origin
+                    if ($remote -eq "origin") {
+                        continue
+                    }
+                    if (git ls-remote --heads $remote $current) {
+                        Run { git push $remote --delete $current }
+                        if ($LASTEXITCODE -eq 0) { break }
+                    }
+                }
+            }
         "#;
 
         Command::new("powershell")
