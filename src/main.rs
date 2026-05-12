@@ -1,12 +1,43 @@
 use std::{
-    io,
+    env,
+    io::{self, Error, ErrorKind},
     process::{Command, ExitCode, Output, Stdio, Termination},
 };
 
+#[allow(clippy::too_many_lines)]
 fn main() -> io::Result<OutputExt> {
+    let mut args = env::args().skip(1);
+    let branch = match args.next() {
+        Some(flag) if flag == "-b" => {
+            let branch = args.next().ok_or_else(|| {
+                Error::new(ErrorKind::InvalidInput, "missing branch name after -b")
+            })?;
+            if args.next().is_some() {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "unexpected extra arguments",
+                ));
+            }
+            Some(branch)
+        }
+        Some(_) => {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "unexpected argument, expected -b",
+            ));
+        }
+        None => None,
+    };
+    let branch = branch.as_deref().unwrap_or_default();
+
     #[cfg(unix)]
     {
         const SCRIPT: &str = r#"
+            current="${GIT_SAO_BRANCH}" &&
+            if [ "${current}" ]; then
+                git checkout "${current}"
+            fi &&
+
             current=$(git branch --show-current) &&
 
             default=$(git remote show origin | awk '/HEAD branch/ {print $NF}') &&
@@ -36,6 +67,7 @@ fn main() -> io::Result<OutputExt> {
 
         Command::new("sh")
             .args(["-c", SCRIPT])
+            .env("GIT_SAO_BRANCH", branch)
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .output()
@@ -45,6 +77,11 @@ fn main() -> io::Result<OutputExt> {
     #[cfg(windows)]
     {
         const SCRIPT: &str = r#"
+            current = $env:GIT_SAO_BRANCH
+            if ($current) {
+                git checkout $current
+            }
+
             $current = (git branch --show-current)
             if (-not $current) { exit $LASTEXITCODE }
 
@@ -93,6 +130,7 @@ fn main() -> io::Result<OutputExt> {
                 "-Command",
                 SCRIPT,
             ])
+            .env("GIT_SAO_BRANCH", branch)
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .output()
